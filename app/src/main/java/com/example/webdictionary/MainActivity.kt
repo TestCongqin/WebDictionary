@@ -6,7 +6,6 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.text.TextUtils
-import android.util.Log
 import android.view.Menu
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -14,6 +13,7 @@ import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import kotlinx.android.synthetic.main.activity_main.*
+import java.net.URLEncoder
 
 
 class MainActivity : AppCompatActivity() {
@@ -22,6 +22,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        logE("oncreate")
         setContentView(R.layout.activity_main)
 
         setupWebView()
@@ -37,7 +38,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onSearchRequested(): Boolean {
-        Log.e("congqin", ">>>>>>>>>>congqin onSearchRequested")
+
+        logD("onSearchRequested")
 
         return super.onSearchRequested()
     }
@@ -66,11 +68,9 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun handleIntent() {
-
-
         var searchWord: CharSequence? = null
 
-        Log.e("congqin", ">>>>>>>>>>congqin ${intent.action}")
+        logE("handleIntent ${intent.action}")
 
         if (Intent.ACTION_PROCESS_TEXT == intent.action) {
             val text = intent
@@ -86,13 +86,24 @@ class MainActivity : AppCompatActivity() {
                 searchWord = query
             }
 
-            Log.e("congqin", ">>>>>>>>>>congqin ACTION_SEARCH")
+            logE("handleIntent  ACTION_SEARCH")
         }
 
         searchWord = searchWord?.trim()
 
         if (!TextUtils.isEmpty(searchWord)) {
-            val url = "https://dictionary.cambridge.org/dictionary/english-chinese-traditional/$searchWord"
+            var url = ""
+
+            if (Utils.isAlphaWord(searchWord!!)) {
+                url =
+                    "https://dictionary.cambridge.org/dictionary/english-chinese-traditional/$searchWord"
+            } else {
+                url = "https://www.weblio.jp/content/${URLEncoder.encode(
+                    searchWord.toString(),
+                    "utf-8"
+                )}?smtp=smp_apl_and"
+            }
+
             webView.loadUrl(url)
         }
     }
@@ -105,7 +116,7 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
 
-                Log.e("congqin", ">>>>>>>>>>congqin onPageStarted")
+                logE("WebViewClient onPageStarted")
                 super.onPageStarted(view, url, favicon)
 
 
@@ -114,10 +125,30 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
 
-                Log.e("congqin", ">>>>>>>>>>congqin onPageFinished")
+                logE("WebViewClient onPageFinished")
                 super.onPageFinished(view, url)
-                val js = "window.addEventListener('load',() => {console.log('>>>>>>>>>>>congqin load');});"
+            }
 
+            override fun onLoadResource(view: WebView?, url: String?) {
+                super.onLoadResource(view, url)
+                logE("WebViewClient onLoadResource $url")
+            }
+
+
+            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+
+                logE("WebViewClient shouldOverrideUrlLoading $url")
+
+                url?.let {
+                    if (it.contains("www.weblio.jp") && !it.contains("smtp=smp_apl_and")) {
+                        val newUrl =
+                            if (it.contains("?")) "${it}&smtp=smp_apl_and" else "${it}?smtp=smp_apl_and"
+                        view!!.loadUrl(newUrl)
+                        return true
+                    }
+                }
+
+                return super.shouldOverrideUrlLoading(view, url)
             }
         }
 
