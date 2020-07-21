@@ -7,9 +7,7 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.text.TextUtils
 import android.view.Menu
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.webkit.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
 import kotlinx.android.synthetic.main.activity_main.*
@@ -19,6 +17,7 @@ import java.net.URLEncoder
 class MainActivity : AppCompatActivity() {
 
     private lateinit var adBlockerJs: String
+    private var searchEnglish = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,7 +26,7 @@ class MainActivity : AppCompatActivity() {
 
         setupWebView()
 
-        adBlockerJs = assets.open("adBlocker.js").bufferedReader().use { it.readText() }
+
         handleIntent()
     }
 
@@ -73,6 +72,11 @@ class MainActivity : AppCompatActivity() {
         logE("handleIntent ${intent.action}")
 
         if (Intent.ACTION_PROCESS_TEXT == intent.action) {
+            if (intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK == 0) {
+                startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                finish()
+                return
+            }
             val text = intent
                 .getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
             if (text != null) {
@@ -92,16 +96,22 @@ class MainActivity : AppCompatActivity() {
         searchWord = searchWord?.trim()
 
         if (!TextUtils.isEmpty(searchWord)) {
-            var url = ""
+            val url: String
 
-            if (Utils.isAlphaWord(searchWord!!)) {
+            if (Utils.isAlphaWord(searchWord!!)) { // search English words
+                searchEnglish = true
                 url =
                     "https://dictionary.cambridge.org/dictionary/english-chinese-traditional/$searchWord"
-            } else {
+                adBlockerJs = assets.open("adBlocker_dictionary.cambridge.org.js").bufferedReader()
+                    .use { it.readText() }
+            } else { // search Japanese words
+                searchEnglish = false
                 url = "https://www.weblio.jp/content/${URLEncoder.encode(
                     searchWord.toString(),
                     "utf-8"
                 )}?smtp=smp_apl_and"
+                adBlockerJs =
+                    assets.open("adBlocker_www.weblio.jp.js").bufferedReader().use { it.readText() }
             }
 
             webView.loadUrl(url)
@@ -139,17 +149,37 @@ class MainActivity : AppCompatActivity() {
 
                 logE("WebViewClient shouldOverrideUrlLoading $url")
 
-                url?.let {
-                    if (it.contains("www.weblio.jp") && !it.contains("smtp=smp_apl_and")) {
-                        val newUrl =
-                            if (it.contains("?")) "${it}&smtp=smp_apl_and" else "${it}?smtp=smp_apl_and"
-                        view!!.loadUrl(newUrl)
-                        return true
+                if (!searchEnglish) {
+                    logE("searchEnglish ...")
+                    url?.let {
+                        if (it.contains("www.weblio.jp") && !it.contains("smtp=smp_apl_and")) {
+                            val newUrl =
+                                if (it.contains("?")) "${it}&smtp=smp_apl_and" else "${it}?smtp=smp_apl_and"
+                            view!!.loadUrl(newUrl)
+                            return true
+                        }
                     }
                 }
 
                 return super.shouldOverrideUrlLoading(view, url)
             }
+
+            override fun shouldInterceptRequest(
+                view: WebView?,
+                request: WebResourceRequest?
+            ): WebResourceResponse? {
+                request?.url?.let {
+                    if (it.toString().contains(".js")) {
+                        return WebResourceResponse(
+                            "text/javascript",
+                            "UTF-8",
+                            assets.open("empty.js")
+                        )
+                    }
+                }
+                return super.shouldInterceptRequest(view, request)
+            }
+
         }
 
         webView.webChromeClient = object : WebChromeClient() {
@@ -157,6 +187,14 @@ class MainActivity : AppCompatActivity() {
 
         }
 
+    }
+
+    override fun onBackPressed() {
+        if (webView.canGoBack()){
+            webView.goBack()
+            return
+        }
+        super.onBackPressed()
     }
 
 }
