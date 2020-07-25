@@ -25,8 +25,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         setupWebView()
-
-
         handleIntent()
     }
 
@@ -149,17 +147,15 @@ class MainActivity : AppCompatActivity() {
 
                 logE("WebViewClient shouldOverrideUrlLoading $url")
 
-                if (!searchEnglish) {
-                    logE("searchEnglish ...")
-                    url?.let {
-                        if (it.contains("www.weblio.jp") && !it.contains("smtp=smp_apl_and")) {
-                            val newUrl =
-                                if (it.contains("?")) "${it}&smtp=smp_apl_and" else "${it}?smtp=smp_apl_and"
-                            view!!.loadUrl(newUrl)
-                            return true
-                        }
+                url?.let {
+                    if (it.contains("www.weblio.jp") && !it.contains("smtp=smp_apl_and")) {
+                        val newUrl =
+                            if (it.contains("?")) "${it}&smtp=smp_apl_and" else "${it}?smtp=smp_apl_and"
+                        view!!.loadUrl(newUrl)
+                        return true
                     }
                 }
+
 
                 return super.shouldOverrideUrlLoading(view, url)
             }
@@ -168,13 +164,15 @@ class MainActivity : AppCompatActivity() {
                 view: WebView?,
                 request: WebResourceRequest?
             ): WebResourceResponse? {
-                request?.url?.let {
-                    if (it.toString().contains(".js")) {
-                        return WebResourceResponse(
-                            "text/javascript",
-                            "UTF-8",
-                            assets.open("empty.js")
-                        )
+                if (!searchEnglish) {
+                    request?.url?.let {
+                        if (it.toString().contains(".js")) {
+                            return WebResourceResponse(
+                                "text/javascript",
+                                "UTF-8",
+                                assets.open("empty.js")
+                            )
+                        }
                     }
                 }
                 return super.shouldInterceptRequest(view, request)
@@ -190,7 +188,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (webView.canGoBack()){
+        if (webView.canGoBack()) {
             webView.goBack()
             return
         }
